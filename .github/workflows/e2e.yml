@@ -29,7 +29,7 @@ jobs:
         run: |
           cd e2e
           npm install
-          npx playwright install --with-deps
+          npx playwright install #--with-deps
 
       - name: Run Playwright tests
         run: |
