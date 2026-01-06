@@ -1,0 +1,44 @@
+name: Login E2E Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: self-hosted
+
+    env:
+      TEST_USER_EMAIL: test@ex.com
+      TEST_USER_PASSWORD: pw1234
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install server deps
+        run: |
+          cd server
+          npm install
+
+      - name: Start server
+        run: |
+          cd server
+          nohup node server.js > server.log 2>&1 &
+          sleep 3
+
+      - name: Install test deps
+        run: |
+          cd e2e
+          npm install
+          npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: |
+          cd e2e
+          npx playwright test
