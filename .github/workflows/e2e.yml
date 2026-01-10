@@ -117,9 +117,9 @@ jobs:
         if: failure()
         id: detect
         run: |
-          if grep -R "Invalid credentials" e2e/test-results; then
+          if grep -R "toBeVisible" e2e/test-results; then
             echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
-          elif grep -R "ECONNREFUSED" e2e/test-results; then
+          elif grep -R "ERR_CONNECTION_REFUSED" e2e/test-results; then
             echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
           elif grep -R "playwright.config" e2e/test-results; then
             echo "type=CI_CONFIG" >> $GITHUB_OUTPUT
