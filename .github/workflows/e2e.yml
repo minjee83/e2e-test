@@ -55,20 +55,74 @@ jobs:
         with:
           script: |
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const type = "${{ steps.detect.outputs.type }}";
 
-            const body = [
-              "? ** 테스트 실패**",
+            let title = "?? E2E Test Failed";
+            let labels = ["bug"];
+            let bodyLines = [];
+
+            if (type === "LOGIN_FAILURE") {
+              title = "?? Login E2E Test Failed";
+              labels.push("bug:login");
+              bodyLines = [
+                "- 로그인 테스트 실패",
+                "",
+                "로그인 과정에서 실패가 발생했습니다.",
+                "자격 증명 또는 로그인 플로우를 확인하세요."
+              ];
+            } else if (type === "SERVER_DOWN") {
+              title = "??? Server did not start";
+              labels.push("bug:server");
+              bodyLines = [
+                "서버 시작  실패",
+                "",
+                "서버가 정상적으로 시작되지 않았습니다.",
+                "포트 충돌 또는 프로세스 오류를 확인하세요."
+              ];
+            } else if (type === "CI_CONFIG") {
+              title = "?? CI / Playwright Configuration Error";
+              labels.push("bug:ci");
+              bodyLines = [
+                "CI 설정 오류",
+                "",
+                "Playwright 또는 CI 설정 파일에서 오류가 발생했습니다."
+              ];
+            } else {
+              title = "? Unknown E2E Failure";
+              labels.push("bug:unknown");
+              bodyLines = [
+                "원인 불명  실패",
+                "",
+                "자동 분류되지 않은 실패입니다.",
+                "Artifacts 및 로그를 확인하세요."
+              ];
+            }
+
+            bodyLines.push(
               "",
               `- Commit: ${context.sha}`,
               `- Workflow: ${context.workflow}`,
-              `- Run: ${runUrl}`,
-              "",
-              "Artifacts를 확인해 주세요."
-            ].join("\n");
+              `- Run: ${runUrl}`
+            );
 
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: "Test Failed",
-              body
+              title,
+              labels,
+              body: bodyLines.join("\n")
             });
+
+      - name: Detect failure type
+        if: failure()
+        id: detect
+        run: |
+          if grep -R "Invalid credentials" e2e/test-results; then
+            echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
+          elif grep -R "ECONNREFUSED" e2e/test-results; then
+            echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
+          elif grep -R "playwright.config" e2e/test-results; then
+            echo "type=CI_CONFIG" >> $GITHUB_OUTPUT
+          else
+            echo "type=UNKNOWN" >> $GITHUB_OUTPUT
+          fi
