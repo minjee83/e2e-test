@@ -39,6 +39,22 @@ jobs:
         run: |
           cd e2e
           npx playwright test
+
+      - name: Detect failure type
+        if: failure()
+        id: detect
+        run: |
+          echo "Detecting failure type"
+
+          if grep -R "net::ERR_CONNECTION_REFUSED" e2e/test-results/*.json e2e/test-results/*/*.json 2>/dev/null; then
+            echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
+
+          elif grep -R "toBeVisible" e2e/test-results/*.json e2e/test-results/*/*.json 2>/dev/null; then
+            echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
+
+          else
+            echo "type=UNKNOWN" >> $GITHUB_OUTPUT
+          fi
           
       - name: Upload Playwright Artifacts
         if: failure()
@@ -112,19 +128,3 @@ jobs:
               labels,
               body: bodyLines.join("\n")
             });
-
-      - name: Detect failure type
-        if: failure()
-        id: detect
-        run: |
-          echo "?? Detecting failure type..."
-
-          if grep -R "net::ERR_CONNECTION_REFUSED" e2e/test-results/*.json e2e/test-results/*/*.json 2>/dev/null; then
-            echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
-
-          elif grep -R "toBeVisible" e2e/test-results/*.json e2e/test-results/*/*.json 2>/dev/null; then
-            echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
-
-          else
-            echo "type=UNKNOWN" >> $GITHUB_OUTPUT
-          fi
