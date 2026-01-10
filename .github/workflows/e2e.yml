@@ -44,14 +44,19 @@ jobs:
         if: failure()
         id: detect
         run: |
+          cd e2e
+
+          echo "Detecting failure type in $(pwd)"
+
           if grep -R "ERR_CONNECTION_REFUSED" test-results; then
             echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
+
           elif grep -R "toBeVisible" test-results; then
             echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
+
           else
             echo "type=UNKNOWN" >> $GITHUB_OUTPUT
           fi
-
           
       - name: Upload Playwright Artifacts
         if: failure()
