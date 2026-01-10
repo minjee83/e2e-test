@@ -7,7 +7,7 @@ test("login success", async ({ page }) => {
     process.env.TEST_USER_EMAIL || "test@ex.com"
   );
   await page.getByLabel("Password").fill(
-    process.env.TEST_USER_PASSWORD || "pppwww"
+    process.env.TEST_USER_PASSWORD || "pppwww1"
   );
 
   await page.getByRole("button", { name: "Log in" }).click();
