@@ -40,23 +40,38 @@ jobs:
           cd e2e
           npx playwright test
 
-      - name: Detect failure type
+      - name: Detect failure type (DUMP MODE)
         if: failure()
         id: detect
         run: |
           cd e2e
 
-          echo "Detecting failure type in $(pwd)"
+          echo "===== CURRENT DIR ====="
+          pwd
 
-          if grep -Ri "net::err_connection_refused" test-results; then
-            echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
+          echo "===== LIST test-results ====="
+          ls -R test-results || echo "? test-results not found"
 
-          elif grep -Ri "tobevisible" test-results; then
-            echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
+          echo "===== FIND JSON FILES ====="
+          find test-results -type f || true
 
-          else
-            echo "type=UNKNOWN" >> $GITHUB_OUTPUT
+          echo "===== SHOW FIRST JSON CONTENT ====="
+          FIRST_JSON=$(find test-results -name "*.json" | head -n 1)
+          echo "JSON FILE: $FIRST_JSON"
+          if [ -n "$FIRST_JSON" ]; then
+            cat "$FIRST_JSON"
           fi
+
+          echo "===== GREP CONNECTION ====="
+          grep -Ri "connection" test-results || echo "no connection keyword"
+
+          echo "===== GREP ERR ====="
+          grep -Ri "err" test-results || echo "no err keyword"
+
+          echo "===== GREP toBe ====="
+          grep -Ri "tobe" test-results || echo "no tobe keyword"
+
+          echo "type=DUMP" >> $GITHUB_OUTPUT
  
           
       - name: Upload Playwright Artifacts
