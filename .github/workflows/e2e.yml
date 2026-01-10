@@ -117,12 +117,14 @@ jobs:
         if: failure()
         id: detect
         run: |
-          if grep -R "toBeVisible" e2e/test-results; then
-            echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
-          elif grep -R "ERR_CONNECTION_REFUSED" e2e/test-results; then
+          echo "?? Detecting failure type..."
+
+          if grep -R "net::ERR_CONNECTION_REFUSED" e2e/test-results/*.json e2e/test-results/*/*.json 2>/dev/null; then
             echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
-          elif grep -R "playwright.config" e2e/test-results; then
-            echo "type=CI_CONFIG" >> $GITHUB_OUTPUT
+
+          elif grep -R "toBeVisible" e2e/test-results/*.json e2e/test-results/*/*.json 2>/dev/null; then
+            echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
+
           else
             echo "type=UNKNOWN" >> $GITHUB_OUTPUT
           fi
