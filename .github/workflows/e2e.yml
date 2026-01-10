@@ -59,15 +59,14 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: "?? Test Failed",
+              title: "Test Failed",
               body: `
-? ** 테스트 실패**
 
 - Commit: ${context.sha}
 - Workflow: ${context.workflow}
 - Run: ${runUrl}
 
-Artifacts를 확인해 주세요.
+Please Check Artifacts
               `
             });
   
