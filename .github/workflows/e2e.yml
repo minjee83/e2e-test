@@ -17,74 +17,81 @@ jobs:
       TEST_USER_PASSWORD: pw1234
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-#      - name: Start server
-#        run: |
-#          cd server
-#          nohup node server.js > server.log 2>&1 &
-#          sleep 3
+      # - name: Start server
+      #   run: |
+      #     cd server
+      #     nohup node server.js > server.log 2>&1 &
+      #     sleep 3
 
       - name: Install test deps
         run: |
           cd e2e
-          npm install
-          npx playwright install #--with-deps
+          npm ci || npm install
+          npx playwright install
 
-      - name: Run Playwright tests
+      #테스트는 실패해도 이후 분기를 위해 exit code 저장
+      - name: Run Playwright tests (JSON report)
+        id: pw
         run: |
           cd e2e
-          npx playwright test
+          set +e
+          npx playwright test --reporter=json > result.json
+          ec=$?
+          echo "exit_code=$ec" >> $GITHUB_OUTPUT
+          exit 0
 
-      - name: Detect failure type (DUMP MODE)
-        if: failure()
+      #JSON 결과를 jq로 파싱해서 실패 유형 분기
+      - name: Detect failure type
+        if: always()
         id: detect
         run: |
           cd e2e
 
-          echo "===== CURRENT DIR ====="
-          pwd
-
-          echo "===== LIST test-results ====="
-          ls -R test-results || echo "? test-results not found"
-
-          echo "===== FIND JSON FILES ====="
-          find test-results -type f || true
-
-          echo "===== SHOW FIRST JSON CONTENT ====="
-          FIRST_JSON=$(find test-results -name "*.json" | head -n 1)
-          echo "JSON FILE: $FIRST_JSON"
-          if [ -n "$FIRST_JSON" ]; then
-            cat "$FIRST_JSON"
+          if [ "${{ steps.pw.outputs.exit_code }}" = "0" ]; then
+            echo "type=SUCCESS" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-          echo "===== GREP CONNECTION ====="
-          grep -Ri "connection" test-results || echo "no connection keyword"
+          if [ ! -f result.json ]; then
+            echo "type=UNKNOWN" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
-          echo "===== GREP ERR ====="
-          grep -Ri "err" test-results || echo "no err keyword"
+          if jq -e '.errors[]? | select(.test.title=="health check")' result.json >/dev/null; then
+            echo "type=SERVER_DOWN" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
-          echo "===== GREP toBe ====="
-          grep -Ri "tobe" test-results || echo "no tobe keyword"
+          if jq -e '.errors[]? | select(.test.title=="login success")' result.json >/dev/null; then
+            echo "type=LOGIN_FAILURE" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
-          echo "type=DUMP" >> $GITHUB_OUTPUT
- 
-          
+          echo "type=UNKNOWN" >> $GITHUB_OUTPUT
+
       - name: Upload Playwright Artifacts
-        if: failure()
+        if: ${{ steps.detect.outputs.type != 'SUCCESS' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-artifacts
           path: |
             e2e/playwright-report
             e2e/test-results
-            
+            e2e/result.json
+            server/server.log
+          if-no-files-found: warn
+
+      #실패 유형별 Issue 생성
       - name: Create GitHub Issue on Failure
-        if: failure()
+        if: ${{ steps.detect.outputs.type != 'SUCCESS' }}
         uses: actions/github-script@v7
         with:
           script: |
@@ -92,48 +99,45 @@ jobs:
             const type = "${{ steps.detect.outputs.type }}";
 
             let title = "Test Failed";
-            let labels = ["bug"];
+            const labels = ["bug"];
             let bodyLines = [];
 
-            if (type === "LOGIN_FAILURE") {
-              title = "Login Test Failed";
-              labels.push("bug:login");
-              bodyLines = [
-                "- 로그인 테스트 실패",
-                "",
-                "로그인 과정에서 실패가 발생했습니다.",
-                "자격 증명 또는 로그인 플로우를 확인하세요."
-              ];
-            } else if (type === "SERVER_DOWN") {
-              title = "Server did not start";
+            if (type === "SERVER_DOWN") {
+              title = "Server/Environment Down";
               labels.push("bug:server");
               bodyLines = [
-                "서버 시작  실패",
+                "서버/환경 문제로 실패",
                 "",
-                "서버가 정상적으로 시작되지 않았습니다.",
-                "포트 충돌 또는 프로세스 오류를 확인하세요."
+                "- health check 테스트가 실패했습니다.",
+                "- 서버 기동 여부, 포트(8080), 프로세스 상태를 확인하세요.",
+                "",
+                "Artifacts에서 `server.log`, `result.json`, trace/스크린샷을 확인하세요."
               ];
-            } else if (type === "CI_CONFIG") {
-              title = "CI / Playwright Configuration Error";
-              labels.push("bug:ci");
+            } else if (type === "LOGIN_FAILURE") {
+              title = "Login Flow Failure";
+              labels.push("bug:login");
               bodyLines = [
-                "CI 설정 오류",
+                "로그인 플로우  실패",
                 "",
-                "Playwright 또는 CI 설정 파일에서 오류가 발생했습니다."
+                "- login success 테스트가 실패했습니다.",
+                "- 계정/비밀번호, 로그인 후 리다이렉트(URL), 셀렉터 변경 여부를 확인하세요.",
+                "",
+                "Artifacts에서 `result.json`, trace/스크린샷을 확인하세요."
               ];
             } else {
-              title = "Unknown E2E Failure";
+              title = "Unknown Failure";
               labels.push("bug:unknown");
               bodyLines = [
-                "원인 불명  실패",
+                "원인불명  실패",
                 "",
-                "자동 분류되지 않은 실패입니다.",
-                "Artifacts 및 로그를 확인하세요."
+                "- 자동 분류 규칙에 매칭되지 않았습니다.",
+                "- Artifacts의 `result.json`과 trace/스크린샷을 기반으로 분류 규칙을 확장하세요."
               ];
             }
 
             bodyLines.push(
               "",
+              `- Type: ${type}`,
               `- Commit: ${context.sha}`,
               `- Workflow: ${context.workflow}`,
               `- Run: ${runUrl}`
