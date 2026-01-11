@@ -78,7 +78,46 @@ jobs:
           fi
 
           echo "type=UNKNOWN" >> $GITHUB_OUTPUT
+          
+ - name: Write CI Summary
+        if: always()
+        run: |
+          echo "Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
+          echo "- Repository: \`${{ github.repository }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.detect.outputs.type }}" = "SUCCESS" ]; then
+            echo "Result: SUCCESS" >> $GITHUB_STEP_SUMMARY
+            echo "- All E2E tests passed successfully." >> $GITHUB_STEP_SUMMARY
+
+          elif [ "${{ steps.detect.outputs.type }}" = "SERVER_DOWN" ]; then
+            echo "Result: SERVER DOWN" >> $GITHUB_STEP_SUMMARY
+            echo "- Health check test failed." >> $GITHUB_STEP_SUMMARY
+            echo "- Server was not reachable during E2E execution." >> $GITHUB_STEP_SUMMARY
+            echo "- Please check server process and port (8080)." >> $GITHUB_STEP_SUMMARY
+
+          elif [ "${{ steps.detect.outputs.type }}" = "LOGIN_FAILURE" ]; then
+            echo "Result: LOGIN FAILURE" >> $GITHUB_STEP_SUMMARY
+            echo "- Login success E2E test failed." >> $GITHUB_STEP_SUMMARY
+            echo "- Possible causes: authentication flow or UI change." >> $GITHUB_STEP_SUMMARY
+
+          else
+            echo "Result: UNKNOWN" >> $GITHUB_STEP_SUMMARY
+            echo "- Failure occurred but was not classified." >> $GITHUB_STEP_SUMMARY
+            echo "- Please review artifacts and logs." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Playwright report, screenshots, and trace files are attached to this run." >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View GitHub Actions Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+                    
       - name: Upload Playwright Artifacts
         if: ${{ steps.detect.outputs.type == 'SERVER_DOWN' || steps.detect.outputs.type == 'LOGIN_FAILURE' }}
         uses: actions/upload-artifact@v4
