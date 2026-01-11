@@ -79,7 +79,7 @@ jobs:
 
           echo "type=UNKNOWN" >> $GITHUB_OUTPUT
           
- - name: Write CI Summary
+      - name: Write CI Summary
         if: always()
         run: |
           echo "Summary" >> $GITHUB_STEP_SUMMARY
